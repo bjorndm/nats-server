@@ -54,7 +54,7 @@ const (
 	itemCommentStart
 	itemVariable
 	itemInclude
-	itemAppend
+	itemOperator
 )
 
 const (
@@ -79,7 +79,6 @@ const (
 	topOptTerm        = '}'
 	blockStart        = '('
 	blockEnd          = ')'
-	appendOperator    = '+'
 	mapEndString      = string(mapEnd)
 )
 
@@ -316,8 +315,9 @@ func lexTopValueEnd(lx *lexer) stateFn {
 	case isNL(r) || r == eof || r == optValTerm || r == topOptValTerm || r == topOptTerm:
 		lx.ignore()
 		return lexTop
-	case r == appendOperator:
-		return lexAppend
+	case isOperator(r):
+		lx.push(lexTop)
+		return lexOperator
 	}
 	return lx.errorf("Expected a top-level value to end with a new line, "+
 		"comment or EOF, but got '%v' instead.", r)
@@ -1152,18 +1152,22 @@ func lexSkip(lx *lexer, nextState stateFn) stateFn {
 	}
 }
 
-// lexAppend parses an append expression. It assumes that a + sign
-// has already been read. 
-// lexAppend skips whitespace and then parses the next value.
-func lexAppend(lx *lexer) stateFn {
+// lexOperator parses an operator expression. It assumes that the operator sign
+// has already been read.
+// lexOperator skips whitespace and then parses the next value.
+func lexOperator(lx *lexer) stateFn {
 	r := lx.next()
 	if isWhitespace(r) || isNL(r) {
-		lexSkip(lx, lexAppend)
+		return lexSkip(lx, lexOperator)
 	}
 	lx.backup()
-	lx.ignore()
-	lx.emit(itemAppend)
+	lx.emit(itemOperator)
 	return lexValue
+}
+
+// Tests to see if we have an operator. We use \ for division since / is used for comments.
+func isOperator(r rune) bool {
+	return r == '+' || r == '-' || r == '*' || r == '%' || r == '&' || r == '|' || r == '\\'
 }
 
 // Tests to see if we have a number suffix
@@ -1222,8 +1226,8 @@ func (itype itemType) String() string {
 		return "Variable"
 	case itemInclude:
 		return "Include"
-	case itemAppend:
-		return "Append"
+	case itemOperator:
+		return "Operator"
 	}
 	panic(fmt.Sprintf("BUG: Unknown type '%s'.", itype.String()))
 }
