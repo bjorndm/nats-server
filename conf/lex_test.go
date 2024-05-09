@@ -1643,3 +1643,26 @@ func TestJSONCompat(t *testing.T) {
 		})
 	}
 }
+
+func TestTopValuesWithOperator(t *testing.T) {
+	expectedItems := []item{
+		{itemKey, "foo", 1, 0},
+		{itemString, "bar", 1, 6},
+		{itemAppend, "", 1,11},
+		{itemVariable, "baz", 1, 13},
+		{itemEOF, "", 1, 0},
+	}
+
+	lx := lex("foo = bar + $baz ")
+	expect(t, lx, expectedItems)
+
+	expectedItems = []item{
+		{itemKey, "foo", 1, 0},
+		{itemInteger, "123", 1, 4},
+		{itemAppend, "", 1, 12},
+		{itemInteger, " 345", 1, 12},
+		{itemEOF, "", 1, 0},
+	}
+	lx = lex("foo=123    + 345")
+	expect(t, lx, expectedItems)
+}

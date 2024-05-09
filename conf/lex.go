@@ -54,6 +54,7 @@ const (
 	itemCommentStart
 	itemVariable
 	itemInclude
+	itemAppend
 )
 
 const (
@@ -78,6 +79,7 @@ const (
 	topOptTerm        = '}'
 	blockStart        = '('
 	blockEnd          = ')'
+	appendOperator    = '+'
 	mapEndString      = string(mapEnd)
 )
 
@@ -293,6 +295,7 @@ func lexTop(lx *lexer) stateFn {
 // lexTopValueEnd is entered whenever a top-level value has been consumed.
 // It must see only whitespace, and will turn back to lexTop upon a new line.
 // If it sees EOF, it will quit the lexer successfully.
+// It also supports parsing the append operator.
 func lexTopValueEnd(lx *lexer) stateFn {
 	r := lx.next()
 	switch {
@@ -313,6 +316,8 @@ func lexTopValueEnd(lx *lexer) stateFn {
 	case isNL(r) || r == eof || r == optValTerm || r == topOptValTerm || r == topOptTerm:
 		lx.ignore()
 		return lexTop
+	case r == appendOperator:
+		return lexAppend
 	}
 	return lx.errorf("Expected a top-level value to end with a new line, "+
 		"comment or EOF, but got '%v' instead.", r)
@@ -1147,6 +1152,20 @@ func lexSkip(lx *lexer, nextState stateFn) stateFn {
 	}
 }
 
+// lexAppend parses an append expression. It assumes that a + sign
+// has already been read. 
+// lexAppend skips whitespace and then parses the next value.
+func lexAppend(lx *lexer) stateFn {
+	r := lx.next()
+	if isWhitespace(r) || isNL(r) {
+		lexSkip(lx, lexAppend)
+	}
+	lx.backup()
+	lx.ignore()
+	lx.emit(itemAppend)
+	return lexValue
+}
+
 // Tests to see if we have a number suffix
 func isNumberSuffix(r rune) bool {
 	return r == 'k' || r == 'K' || r == 'm' || r == 'M' || r == 'g' || r == 'G' || r == 't' || r == 'T' || r == 'p' || r == 'P' || r == 'e' || r == 'E'
@@ -1203,6 +1222,8 @@ func (itype itemType) String() string {
 		return "Variable"
 	case itemInclude:
 		return "Include"
+	case itemAppend:
+		return "Append"
 	}
 	panic(fmt.Sprintf("BUG: Unknown type '%s'.", itype.String()))
 }
